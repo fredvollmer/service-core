@@ -20,9 +20,11 @@ object ServiceCoreBuild extends Build {
         "org.scalikejdbc" %% "scalikejdbc" % "2.4.2",
         "org.scalikejdbc" %% "scalikejdbc-config" % "2.4.2",
         "com.typesafe.scala-logging" %% "scala-logging" % "3.5.0",
-        "com.amazonaws" % "aws-java-sdk-osgi" % "1.11.48" withSources(),
+        "com.amazonaws" % "aws-java-sdk-osgi" % "1.11.119" withSources(),
         "commons-codec" % "commons-codec" % "1.10",
-        "org.json4s" %% "json4s-jackson" % "3.5.0"
+        "org.json4s" %% "json4s-jackson" % "3.5.0",
+        "org.jgrapht" % "jgrapht-core" % "0.9.2",
+        "net.debasishg" %% "redisclient" % "3.3"
       )
     )
   )

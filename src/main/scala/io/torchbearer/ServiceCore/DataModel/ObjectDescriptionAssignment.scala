@@ -5,12 +5,16 @@ import java.sql.Timestamp
 import scalikejdbc._
 import scalikejdbc.interpolation.SQLSyntax._
 import io.torchbearer.ServiceCore.tyoes.Rectangle
+import org.json4s._
+import org.json4s.jackson.JsonMethods._
+import org.json4s.jackson.Serialization
+import org.json4s.jackson.Serialization._
 
 /**
   * Created by fredricvollmer on 1/1/17.
   */
 case class ObjectDescriptionAssignment(assignmentId: String,
-                                       hitId: String,
+                                       landmarkId: String,
                                        duration: Int,
                                        description: Option[String],
                                        turkerId: Option[String],
@@ -18,9 +22,10 @@ case class ObjectDescriptionAssignment(assignmentId: String,
 
 object ObjectDescriptionAssignment extends SQLSyntaxSupport[ObjectDescriptionAssignment] {
   override val tableName = "ObjectDescriptionAssignments"
+  implicit val formats = DefaultFormats
 
   def apply(os: ResultName[ObjectDescriptionAssignment])(rs: WrappedResultSet) = new ObjectDescriptionAssignment(
-    rs.string(os.assignmentId), rs.string(os.hitId), rs.int(os.duration),
+    rs.string(os.assignmentId), rs.string(os.landmarkId), rs.int(os.duration),
     rs.stringOpt(os.description), rs.stringOpt(os.turkerId), rs.timestampOpt(os.dateCreated))
 
   /*********** Query: GET **************/
@@ -32,7 +37,7 @@ object ObjectDescriptionAssignment extends SQLSyntaxSupport[ObjectDescriptionAss
         select(sa.result.*)
           .from(ObjectDescriptionAssignment as sa)
           .where(sqls.toAndConditionOpt(
-            hitId.map(hid => sqls.eq(sa.hitId, hid))
+            hitId.map(hid => sqls.eq(sa.landmarkId, hid))
           ))
           .limit(count)
           .offset(offset)
@@ -48,7 +53,7 @@ object ObjectDescriptionAssignment extends SQLSyntaxSupport[ObjectDescriptionAss
         select(count(sa.assignmentId))
           .from(ObjectDescriptionAssignment as sa)
           .where(sqls.toAndConditionOpt(
-            hitId.map(hid => sqls.eq(sa.hitId, hid))
+            hitId.map(hid => sqls.eq(sa.landmarkId, hid))
           ))
       }.map(_.int(1)).single.apply.get
     }
@@ -56,5 +61,24 @@ object ObjectDescriptionAssignment extends SQLSyntaxSupport[ObjectDescriptionAss
   }
 
   /********** Query: INSERT *******************/
+  def insertDescriptionAssignments(assignments: List[ObjectDescriptionAssignment]): Unit = {
+    implicit val formats = Serialization.formats(NoTypeHints)
 
+    val da = ObjectDescriptionAssignment.column
+    DB localTx { implicit session: DBSession =>
+      assignments.foreach(a => {
+        withSQL {
+          insert.into(ObjectDescriptionAssignment).namedValues(
+            da.assignmentId -> a.assignmentId,
+            da.landmarkId -> a.landmarkId,
+            da.duration -> 0,
+            da.description -> a.description,
+            da.turkerId -> a.turkerId
+          ).append(
+            sqls"ON DUPLICATE KEY UPDATE ${da.assignmentId}=${da.assignmentId}"
+          )
+        }.update.apply()
+      })
+    }
+  }
 }

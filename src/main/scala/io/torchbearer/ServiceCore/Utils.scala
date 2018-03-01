@@ -1,5 +1,10 @@
 package io.torchbearer.ServiceCore
 
+import java.sql.Timestamp
+import java.util.Calendar
+
+import com.amazonaws.util.EC2MetadataUtils
+
 /**
   * Created by fredricvollmer on 11/11/16.
   */
@@ -13,4 +18,13 @@ object Utils {
     }
     paramString.toString()
   }
+
+  def getInstanceId: String = {
+    if (sys.env.getOrElse("ENVIRONMENT", "development") != "production" ) {
+      "Dev Machine"
+    }
+    EC2MetadataUtils.getInstanceId
+  }
+
+  def currentTimestamp: Timestamp = new java.sql.Timestamp(Calendar.getInstance().getTime.getTime)
 }

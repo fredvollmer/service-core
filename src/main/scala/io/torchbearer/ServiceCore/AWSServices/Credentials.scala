@@ -12,7 +12,7 @@ object Credentials {
   private var credentials: Option[AWSCredentials] = None
 
   // Only load credentials if we're not in production env
-  if (sys.env.getOrElse("ENVIRONMENT", "development") != "production" ) {
+  if (sys.env.getOrElse("ENVIRONMENT", "production") != "production" ) {
     try {
       credentials = Some(new ProfileCredentialsProvider("torchbearer").getCredentials)
     } catch {

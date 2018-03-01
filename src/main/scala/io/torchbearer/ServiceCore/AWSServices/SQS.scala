@@ -6,6 +6,9 @@ import com.amazonaws.auth.profile.ProfileCredentialsProvider
 import com.amazonaws.regions.{Region, Regions}
 import com.amazonaws.services.sqs.AmazonSQSClient
 import io.torchbearer.ServiceCore.Constants
+import org.json4s.NoTypeHints
+import org.json4s.jackson.Serialization
+import org.json4s.jackson.Serialization._
 
 /**
   * Created by fredricvollmer on 11/10/16.

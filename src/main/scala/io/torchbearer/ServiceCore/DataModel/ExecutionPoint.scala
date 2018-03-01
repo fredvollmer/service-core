@@ -1,27 +1,27 @@
 package io.torchbearer.ServiceCore.DataModel
 
 import java.sql.Timestamp
-
+import io.torchbearer.ServiceCore.Constants
 import scalikejdbc._
 import org.apache.commons.codec.binary.Base64
 import sqls.count
 import org.json4s._
 import org.json4s.jackson.JsonMethods._
+import org.json4s.jackson.Serialization
 
 /**
   * Created by fredricvollmer on 11/9/16.
   */
 
-case class ExecutionPoint(executionPointId: String,
+case class ExecutionPoint(executionPointId: Int,
                           lat: Double,
                           long: Double,
                           bearing: Int,
-                          status: String,
-                          saliencyHit: Option[String],
-                          descriptionHit: Option[String],
-                          sampleSet: Option[String],
-                          created: Option[Timestamp],
-                          lastModified: Option[Timestamp]) {
+                          executionPointType: String = Constants.EXECUTION_POINT_TYPE_MANEUVER,
+                          closestIntersectionDistance: Double = 9999,
+                          sampleSet: Option[String] = None,
+                          created: Option[Timestamp] = None,
+                          lastModified: Option[Timestamp] = None) {
 
   def hash(): String = {
     val combinedValue = s"${lat}_${long}_$bearing"
@@ -34,18 +34,22 @@ object ExecutionPoint extends SQLSyntaxSupport[ExecutionPoint] {
   override val tableName = "ExecutionPoints"
   implicit val formats = DefaultFormats
 
-  def apply(ep: ResultName[ExecutionPoint])(rs: WrappedResultSet) = new ExecutionPoint(
-    rs.string(ep.executionPointId), rs.double(ep.lat), rs.double(ep.long),
-    rs.int(ep.bearing), rs.string(ep.status), rs.stringOpt(ep.saliencyHit),
-    rs.stringOpt(ep.descriptionHit), rs.stringOpt(ep.sampleSet), rs.timestampOpt(ep.created),
-    rs.timestampOpt(ep.lastModified))
+  def apply(ep: ResultName[ExecutionPoint])(rs: WrappedResultSet) = new ExecutionPoint(rs.int(ep.executionPointId),
+    rs.double(ep.lat), rs.double(ep.long), rs.int(ep.bearing), rs.string(ep.executionPointType),
+    rs.double(ep.closestIntersectionDistance), rs.stringOpt(ep.sampleSet),
+    rs.timestampOpt(ep.created), rs.timestampOpt(ep.lastModified))
 
   def apply(jsonString: String): ExecutionPoint = {
     val parsedJson = parse(jsonString)
     parsedJson.extract[ExecutionPoint]
   }
 
-  /************ Query Functions ******************/
+  def apply(lat: Double, long: Double, bearing: Int): ExecutionPoint = new ExecutionPoint(0, lat, long, bearing)
+
+  def apply(lat: Double, long: Double, bearing: Int, executionPointType: String, closestIntersectionDistance: Double): ExecutionPoint =
+    new ExecutionPoint(0, lat, long, bearing, executionPointType, closestIntersectionDistance)
+
+  /** ********** Query Functions ******************/
 
   def getExecutionPoint(hash: String): Option[ExecutionPoint] = {
     val s = new String(Base64.decodeBase64(hash), "UTF-8")
@@ -59,7 +63,7 @@ object ExecutionPoint extends SQLSyntaxSupport[ExecutionPoint] {
     getExecutionPoint(parts(0).toFloat, parts(1).toFloat, parts(2).toInt)
   }
 
-  def getExecutionPoint(lat: Float, long: Float, bearing: Int): Option[ExecutionPoint] = {
+  def getExecutionPoint(lat: Double, long: Double, bearing: Int): Option[ExecutionPoint] = {
     val ep = ExecutionPoint.syntax("ep")
     val point: Option[ExecutionPoint] = DB readOnly { implicit session: DBSession =>
       withSQL {
@@ -102,6 +106,20 @@ object ExecutionPoint extends SQLSyntaxSupport[ExecutionPoint] {
     points
   }
 
+  def getExecutionPoints(eps: List[ExecutionPoint]): List[ExecutionPoint] = {
+    val querySeq = eps.map(p => (p.lat, p.long, p.bearing))
+
+    val ep = ExecutionPoint.syntax("ep")
+    val points: List[ExecutionPoint] = DB readOnly { implicit session: DBSession =>
+      withSQL {
+        select(ep.result.*)
+          .from(ExecutionPoint as ep)
+          .where.in((ep.lat, ep.long, ep.bearing), querySeq)
+      }.map(ExecutionPoint(ep.resultName)).list.apply
+    }
+    points
+  }
+
   def getCount: Int = {
     val ep = ExecutionPoint.syntax("ep")
     val total = DB readOnly { implicit session: DBSession =>
@@ -111,5 +129,66 @@ object ExecutionPoint extends SQLSyntaxSupport[ExecutionPoint] {
       }.map(_.int(1)).single.apply.get
     }
     total
+  }
+
+  /** ************* Insert *******************/
+  def insertExecutionPointIfNotExists(p: ExecutionPoint): Unit = {
+    implicit val formats = Serialization.formats(NoTypeHints)
+
+    val ep = ExecutionPoint.column
+    DB localTx { implicit session: DBSession =>
+      sql"INSERT INTO ExecutionPoints (execution_point_type, closest_intersection_distance, lat, `long`, bearing) VALUES (${p.executionPointType}, ${p.closestIntersectionDistance}, ${p.lat}, ${p.long}, ${p.bearing}) ON DUPLICATE KEY UPDATE execution_point_type=${p.executionPointType}, lat=${p.lat}, `long`=${p.long}, bearing=${p.bearing}"
+        .update.apply()
+    }
+  }
+
+  def insertExecutionPoints(points: List[ExecutionPoint]): Unit = {
+    implicit val formats = Serialization.formats(NoTypeHints)
+
+    val ep = ExecutionPoint.column
+    DB localTx { implicit session: DBSession =>
+      points.foreach(p => {
+        // We need to hardcode SQL statement here to avoid reserved word issue in MySQL
+        // TODO: Find way to integrate with QueryDSL
+        sql"INSERT INTO ExecutionPoints (execution_point_type, closest_intersection_distance, lat, `long`, bearing) VALUES (${p.executionPointType}, ${p.closestIntersectionDistance}, ${p.lat}, ${p.long}, ${p.bearing})"
+          .update.apply()
+      })
+    }
+  }
+
+  /** ************* Route processing ****************/
+
+  /**
+    * Returns a map of (lat, long, bearing) onto executionPointId from database
+    *
+    * @param points
+    * @return
+    */
+  def ingestExecutionPoints(points: List[ExecutionPoint]): Map[(Double, Double, Int), Int] = {
+    // Retrieve existing points from db
+    val existingPoints = getExecutionPoints(points)
+
+    // Difference points needed points and existing points
+    var newPoints = points.filter(p0 => !existingPoints.exists(p1 =>
+      p1.bearing == p0.bearing
+        && p1.lat == p0.lat
+        && p1.long == p0.long
+    ))
+
+    // Add those points to db
+    insertExecutionPoints(newPoints)
+
+    // Retrieve new execution points, so we have id's
+    // TODO: Surely there has to be a more efficient way of doing this!!
+    newPoints = getExecutionPoints(newPoints)
+
+    // concatenate newly added points with existing points
+    val combinedPoints = newPoints ++ existingPoints
+
+    // Map (lat, long, bearing) onto points
+    combinedPoints.map(p => {
+      (p.lat, p.long, p.bearing) -> p.executionPointId
+    })
+      .toMap
   }
 }
