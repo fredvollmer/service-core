@@ -53,6 +53,9 @@ case class Hit(hitId: Int,
   }
 
   def getSelectedLandmark: Option[Landmark] = {
+    if (this.selectedLandmarkId.isEmpty)
+      return None
+
     val lm = Landmark.syntax("lm")
     DB readOnly { implicit session: DBSession =>
       withSQL {
