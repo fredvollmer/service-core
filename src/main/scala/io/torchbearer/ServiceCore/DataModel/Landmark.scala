@@ -144,8 +144,8 @@ object Landmark extends SQLSyntaxSupport[Landmark] {
   def apply(l: ResultName[Landmark])(rs: WrappedResultSet) = new Landmark(rs.string(l.landmarkId),
     rs.int(l.hitId), rs.stringOpt(l.description),
     rs.stringOpt(l.color).map(s => parse(s).extract[List[String]]), rs.stringOpt(l.position), rs.stringOpt(l.computedDescription),
-    rs.stringOpt(l.rect).map(s => Rectangle(s)), rs.intOpt(l.relativeBearing),
-    rs.doubleOpt(l.visualSaliencyScore) getOrElse -1, rs.doubleOpt(l.structuralSaliencyScore) getOrElse -1,
+    rs.stringOpt(l.rect).flatMap(s => if (s.length > 0) Some(Rectangle(s)) else None),
+    rs.intOpt(l.relativeBearing), rs.doubleOpt(l.visualSaliencyScore) getOrElse -1, rs.doubleOpt(l.structuralSaliencyScore) getOrElse -1,
     rs.doubleOpt(l.semanticSaliencyScore) getOrElse -1, LandmarkStatus.withName(rs.string(l.status)), rs.int(l.turkDescriptionAttempts),
     rs.stringOpt(l.descriptionHitId), rs.stringOpt(l.verificationHitId))
 
