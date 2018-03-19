@@ -191,12 +191,28 @@ object Hit extends SQLSyntaxSupport[Hit] {
   def updateSaliencyHitIdForHit(hitId: Int, saliencyHitId: String) = {
     // Update Hit
     val h = Hit.column
-    DB localTx { implicit session: DBSession =>
+      DB localTx { implicit session: DBSession =>
       withSQL {
         update(Hit).set(
           h.saliencyHitId -> saliencyHitId
         ).where.eq(h.hitId, hitId)
       }.update.apply()
+    }
+  }
+
+  def setStartTimeForTask(hitId: Int, task: String, timestamp: Long): Unit = {
+    val q = s"UPDATE $tableName SET timeline = JSON_SET(coalesce(timeline, '{}'), '$$.${task}_start', $timestamp) WHERE hit_id = $hitId"
+    val s = new SQLUpdate(q, Seq())(_ => {})(_ => {})
+    DB localTx { implicit session =>
+        s.apply()
+    }
+  }
+
+  def setEndTimeForTask(hitId: Int, task: String, timestamp: Long): Unit = {
+    val q = s"UPDATE $tableName SET timeline = JSON_SET(coalesce(timeline, '{}'), '$$.${task}_end', $timestamp) WHERE hit_id = $hitId"
+    val s = new SQLUpdate(q, Seq())(_ => {})(_ => {})
+    DB localTx { implicit session =>
+      s.apply()
     }
   }
 
