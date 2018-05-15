@@ -19,7 +19,7 @@ case class ExecutionPoint(executionPointId: Int,
                           bearing: Int,
                           executionPointType: String = Constants.EXECUTION_POINT_TYPE_MANEUVER,
                           closestIntersectionDistance: Double = 9999,
-                          sampleSet: Option[String] = None,
+                          var sampleSet: Option[String] = None,
                           created: Option[Timestamp] = None,
                           lastModified: Option[Timestamp] = None) {
 
@@ -135,9 +135,8 @@ object ExecutionPoint extends SQLSyntaxSupport[ExecutionPoint] {
   def insertExecutionPointIfNotExists(p: ExecutionPoint): Unit = {
     implicit val formats = Serialization.formats(NoTypeHints)
 
-    val ep = ExecutionPoint.column
     DB localTx { implicit session: DBSession =>
-      sql"INSERT INTO ExecutionPoints (execution_point_type, closest_intersection_distance, lat, `long`, bearing) VALUES (${p.executionPointType}, ${p.closestIntersectionDistance}, ${p.lat}, ${p.long}, ${p.bearing}) ON DUPLICATE KEY UPDATE execution_point_type=${p.executionPointType}, lat=${p.lat}, `long`=${p.long}, bearing=${p.bearing}"
+      sql"INSERT INTO ExecutionPoints (execution_point_type, closest_intersection_distance, lat, `long`, bearing, sample_set) VALUES (${p.executionPointType}, ${p.closestIntersectionDistance}, ${p.lat}, ${p.long}, ${p.bearing}, ${p.sampleSet}) ON DUPLICATE KEY UPDATE execution_point_type=${p.executionPointType}, lat=${p.lat}, `long`=${p.long}, bearing=${p.bearing}, sample_set=${p.sampleSet}"
         .update.apply()
     }
   }
