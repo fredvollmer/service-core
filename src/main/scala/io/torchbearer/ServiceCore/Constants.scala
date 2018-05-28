@@ -38,6 +38,7 @@ object Constants {
   val PIPELINES_CV_HUMAN = "CV-HUMAN"
   val PIPELINES_HUMAN_CV = "HUMAN-CV"
   val PIPELINES_HUMAN_HUMAN = "HUMAN-HUMAN"
+  val PIPELINES_RAW = "RAW"
 
   val STATE_MACHINES_ARN_CV_CV = "arn:aws:states:us-west-2:814009652816:stateMachine:cv_cv"
   val STATE_MACHINES_ARN_CV_HUMAN = "arn:aws:states:us-west-2:814009652816:stateMachine:cv_human"
